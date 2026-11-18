@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Digital Library{% endblock %}
+{% block content %}
+<main class="min-vh-100 d-flex align-items-center py-7">
+  <div class="position-absolute top-0 end-0 p-5">
+    <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="themeToggle" type="button" aria-label="Toggle color mode">
+      <i class="bi bi-sun" data-theme-icon></i>
+    </button>
+  </div>
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 sm:col-8 md:col-6 lg:col-5 xl:col-4">
+        <div class="card shadow-sm">
+          <div class="card-body p-7">
+            <div class="text-center mb-7">
+              <span class="d-inline-flex align-items-center justify-content-center bg-1 fg-primary rounded-5 p-5 mb-5">
+                <i class="bi bi-collection fs-3xl"></i>
+              </span>
+              <h1 class="h4 mb-2">Digital Library</h1>
+              <p class="fg-secondary fs-sm mb-0">Your books, on every device.</p>
+            </div>
+
+            {% if not has_users %}
+            <div class="alert theme-info fs-sm" role="status">
+              First-run setup: the first account you create becomes the library admin.
+            </div>
+            {% endif %}
+
+            <div class="nav nav-pills nav-fill mb-7" role="tablist" aria-label="Authentication mode">
+              <button type="button" class="nav-link active" id="tabLogin" role="tab" aria-selected="true">Sign in</button>
+              <button type="button" class="nav-link" id="tabRegister" role="tab" aria-selected="false"
+                {% if not allow_registration %}disabled title="Registration is disabled"{% endif %}>Create account</button>
+            </div>
+
+            <form id="loginForm" autocomplete="on" novalidate>
+              <div class="vstack gap-5">
+                <div>
+                  <label class="form-label" for="loginUsername">Username</label>
+                  <input class="form-control form-control-lg" id="loginUsername" name="username" autocomplete="username" required>
+                </div>
+                <div>
+                  <label class="form-label" for="loginPassword">Password</label>
+                  <input class="form-control form-control-lg" id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+                </div>
+                <div class="alert theme-danger fs-sm d-none mb-0" id="loginError" role="alert"></div>
+                <button class="btn btn-solid theme-primary btn-lg w-100" type="submit">Sign in</button>
+              </div>
+            </form>
+
+            <form id="registerForm" class="d-none" novalidate>
+              <div class="vstack gap-5">
+                <div>
+                  <label class="form-label" for="regUsername">Username</label>
+                  <input class="form-control" id="regUsername" autocomplete="username" required minlength="3" maxlength="32">
+                  <div class="form-text">Letters, numbers, dot, dash or underscore (3–32 characters).</div>
+                </div>
+                <div>
+                  <label class="form-label" for="regDisplayName">Display name <span class="fg-secondary">(optional)</span></label>
+                  <input class="form-control" id="regDisplayName" autocomplete="name">
+                </div>
+                <div>
+                  <label class="form-label" for="regPassword">Password</label>
+                  <input class="form-control" id="regPassword" type="password" autocomplete="new-password" required minlength="6">
+                </div>
+                <div>
+                  <label class="form-label" for="regPassword2">Confirm password</label>
+                  <input class="form-control" id="regPassword2" type="password" autocomplete="new-password" required minlength="6">
+                </div>
+                <div class="alert theme-danger fs-sm d-none mb-0" id="registerError" role="alert"></div>
+                <button class="btn btn-solid theme-primary w-100" type="submit">Create account</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <p class="text-center fg-secondary fs-sm mt-5 mb-0">Self-hosted · runs on Termux · port 2104</p>
+      </div>
+    </div>
+  </div>
+</main>
+<script type="application/json" id="page-config">{{ {"allowRegistration": allow_registration}|tojson }}</script>
+<script type="module" src="{{ url_for('static', filename='js/login.js') }}"></script>
+{% endblock %}

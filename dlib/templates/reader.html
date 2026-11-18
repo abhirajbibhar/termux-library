@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}{{ book.title }} · Reader{% endblock %}
+{% block content %}
+<div class="vh-100 d-flex flex-column bg-body" id="readerApp" data-format="{{ book.format }}">
+  <header class="d-flex align-items-center gap-3 border-bottom bg-body px-3 sm:px-5 py-3">
+    <a class="btn btn-outline theme-secondary btn-sm btn-icon flex-shrink-0" href="{{ url_for('pages.library') }}" aria-label="Back to library">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <div class="min-w-0 flex-grow-1">
+      <div class="fw-semibold text-truncate" id="bookTitle">{{ book.title }}</div>
+      <div class="fg-secondary fs-sm text-truncate">{{ book.author or 'Unknown author' }}</div>
+    </div>
+    <div class="d-flex align-items-center gap-2 sm:gap-3 flex-shrink-0">
+      <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="tocBtn" type="button" title="Contents" aria-label="Contents">
+        <i class="bi bi-list-ul"></i>
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="notesBtn" type="button" title="Bookmarks and notes" aria-label="Bookmarks and notes">
+        <i class="bi bi-journal-text"></i>
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm btn-icon d-none md:d-inline-flex" id="bookmarkBtn" type="button" title="Bookmark this page" aria-label="Bookmark this page">
+        <i class="bi bi-bookmark"></i>
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="settingsBtn" type="button" title="Reader settings" aria-label="Reader settings">
+        <i class="bi bi-sliders"></i>
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="readerThemeToggle" type="button" title="Change reading theme" aria-label="Change reading theme">
+        <i class="bi bi-sun" data-theme-icon></i>
+      </button>
+      <a class="btn btn-outline theme-secondary btn-sm btn-icon d-none lg:d-inline-flex" href="/api/books/{{ book.id }}/file?download=1" title="Download file" aria-label="Download file">
+        <i class="bi bi-download"></i>
+      </a>
+    </div>
+  </header>
+
+  <main class="flex-grow-1 position-relative overflow-hidden bg-1" id="readerStage">
+    {% if is_pdf %}
+    <div class="h-100 overflow-auto" id="pdfScroll">
+      <div class="d-flex flex-column align-items-center gap-7 px-3 py-7" id="pdfPages"></div>
+    </div>
+    {% else %}
+    <foliate-view class="d-block w-100 h-100" id="foliateView"></foliate-view>
+    {% endif %}
+
+    <div class="position-absolute top-50 start-50 translate-middle text-center" id="readerLoading">
+      <div class="spinner-border" role="status"><span class="visually-hidden">Opening book…</span></div>
+      <div class="fg-secondary fs-sm mt-3">Opening {{ book.format }}…</div>
+    </div>
+
+    <div class="position-absolute top-50 start-50 translate-middle w-100 px-5 d-none" id="readerError">
+      <div class="alert theme-danger text-center">
+        <h2 class="h6">This book could not be opened</h2>
+        <p class="fs-sm mb-3" id="readerErrorText"></p>
+        <a class="btn btn-outline theme-secondary btn-sm" href="/api/books/{{ book.id }}/file?download=1">
+          <i class="bi bi-download me-2"></i>Download the file
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="d-flex align-items-center gap-3 border-top bg-body px-3 sm:px-5 py-3">
+    <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="prevBtn" type="button" aria-label="Previous page">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+    <div class="form-range flex-grow-1">
+      <input class="form-range-input" type="range" id="progressSlider" min="0" max="100" step="0.1" value="0" aria-label="Reading progress" disabled>
+    </div>
+    <span class="fg-secondary fs-sm text-nowrap" id="progressLabel">0%</span>
+    <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="nextBtn" type="button" aria-label="Next page">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </footer>
+
+  <div class="position-fixed bottom-0 start-50 translate-middle-x mb-7 z-3 d-none" id="selectionBar">
+    <div class="card shadow">
+      <div class="card-body d-flex align-items-center gap-3 p-5">
+        <span class="fs-sm fg-secondary text-truncate w-25" id="selectionPreview"></span>
+        <button class="btn btn-solid theme-warning btn-sm" id="highlightBtn" type="button">
+          <i class="bi bi-highlighter me-2"></i>Highlight
+        </button>
+        <button class="btn btn-outline theme-secondary btn-sm" id="noteSelectionBtn" type="button">
+          <i class="bi bi-chat-left-text me-2"></i>Note
+        </button>
+        <button class="btn btn-text theme-secondary btn-sm btn-icon" id="clearSelectionBtn" type="button" aria-label="Clear selection">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog class="drawer drawer-start" id="contentsDrawer" tabindex="-1" aria-labelledby="contentsDrawerLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5 text-truncate" id="contentsDrawerLabel">{{ book.title }}</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <div class="nav nav-pills nav-fill mb-5" role="tablist">
+      <button class="nav-link active" id="tocTab" data-bs-toggle="tab" data-bs-target="#tocPane" type="button" role="tab" aria-controls="tocPane" aria-selected="true">Contents</button>
+      <button class="nav-link" id="bookmarkTab" data-bs-toggle="tab" data-bs-target="#bookmarkPane" type="button" role="tab" aria-controls="bookmarkPane" aria-selected="false">Bookmarks</button>
+      <button class="nav-link" id="noteTab" data-bs-toggle="tab" data-bs-target="#notePane" type="button" role="tab" aria-controls="notePane" aria-selected="false">Notes</button>
+    </div>
+    <div class="tab-content">
+      <div class="tab-pane show active" id="tocPane" role="tabpanel" aria-labelledby="tocTab">
+        <div class="list-group list-group-flush" id="tocList">
+          <div class="fg-secondary fs-sm py-3">Contents will appear once the book is loaded.</div>
+        </div>
+      </div>
+      <div class="tab-pane" id="bookmarkPane" role="tabpanel" aria-labelledby="bookmarkTab">
+        <button class="btn btn-outline theme-primary btn-sm w-100 mb-3" id="addBookmarkBtn" type="button">
+          <i class="bi bi-bookmark-plus me-2"></i>Bookmark current page
+        </button>
+        <div class="list-group list-group-flush" id="bookmarkList"></div>
+      </div>
+      <div class="tab-pane" id="notePane" role="tabpanel" aria-labelledby="noteTab">
+        <button class="btn btn-outline theme-primary btn-sm w-100 mb-3" id="addNoteBtn" type="button">
+          <i class="bi bi-plus-lg me-2"></i>Add note at current page
+        </button>
+        <div class="list-group list-group-flush" id="noteList"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="drawer drawer-end" id="settingsDrawer" tabindex="-1" aria-labelledby="settingsDrawerLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="settingsDrawerLabel">Reading settings</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <div class="vstack gap-5">
+      <div>
+        <div class="form-label">Theme</div>
+        <div class="btn-group w-100" role="group" aria-label="Reader theme">
+          <button class="btn btn-outline theme-secondary btn-sm" type="button" data-theme-choice="light">Light</button>
+          <button class="btn btn-outline theme-secondary btn-sm" type="button" data-theme-choice="sepia">Sepia</button>
+          <button class="btn btn-outline theme-secondary btn-sm" type="button" data-theme-choice="dark">Dark</button>
+        </div>
+      </div>
+
+      {% if is_pdf %}
+      <div>
+        <div class="form-label">Page zoom</div>
+        <div class="d-flex align-items-center gap-3">
+          <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="pdfZoomOut" type="button" aria-label="Zoom out">
+            <i class="bi bi-dash-lg"></i>
+          </button>
+          <span class="flex-grow-1 text-center fw-semibold" id="pdfZoomValue">100%</span>
+          <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="pdfZoomIn" type="button" aria-label="Zoom in">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
+        <button class="btn btn-outline theme-secondary btn-sm w-100 mt-3" id="pdfFitWidth" type="button">
+          <i class="bi bi-arrows-expand me-2"></i>Fit width
+        </button>
+      </div>
+      {% else %}
+      <div>
+        <label class="form-label" for="fontFamilySelect">Font</label>
+        <select class="form-control form-control-sm" id="fontFamilySelect">
+          <option value="serif">Publisher serif</option>
+          <option value="sans">Sans serif</option>
+          <option value="georgia">Georgia</option>
+          <option value="literata">Literata / fallback serif</option>
+          <option value="mono">Monospace</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label d-flex justify-content-between" for="fontSizeRange">
+          <span>Font size</span><span class="fg-secondary" id="fontSizeValue">18 px</span>
+        </label>
+        <div class="form-range">
+          <input class="form-range-input" type="range" id="fontSizeRange" min="12" max="32" step="1" value="18">
+        </div>
+      </div>
+      <div>
+        <label class="form-label d-flex justify-content-between" for="lineHeightRange">
+          <span>Line spacing</span><span class="fg-secondary" id="lineHeightValue">1.6</span>
+        </label>
+        <div class="form-range">
+          <input class="form-range-input" type="range" id="lineHeightRange" min="1.1" max="2.4" step="0.1" value="1.6">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="layoutSelect">Layout</label>
+        <select class="form-control form-control-sm" id="layoutSelect">
+          <option value="scrolled">Scrolled</option>
+          <option value="paginated">Paginated</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="alignSelect">Text alignment</label>
+        <select class="form-control form-control-sm" id="alignSelect">
+          <option value="left">Left</option>
+          <option value="justify">Justified</option>
+          <option value="center">Centered</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label d-flex justify-content-between" for="widthRange">
+          <span>Screen width</span><span class="fg-secondary" id="widthValue">720 px</span>
+        </label>
+        <div class="form-range">
+          <input class="form-range-input" type="range" id="widthRange" min="320" max="1200" step="20" value="720">
+        </div>
+      </div>
+      {% endif %}
+
+      <button class="btn btn-outline theme-secondary btn-sm w-100" id="resetSettingsBtn" type="button">Reset to defaults</button>
+      <p class="form-text mb-0">{% if is_pdf %}Zoom is saved in this browser.{% else %}Settings are saved in this browser and apply instantly to reflowable books.{% endif %}</p>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="drawer drawer-bottom drawer-sheet" id="noteDialog" tabindex="-1" style="--bs-drawer-height: auto; --bs-drawer-sheet-width: 560px;" aria-labelledby="noteDialogLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="noteDialogLabel">Add note</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <form id="noteForm">
+      <div class="vstack gap-3">
+        <div class="fg-secondary fs-sm d-none" id="noteQuote"></div>
+        <div>
+          <label class="form-label" for="noteText">Note</label>
+          <textarea class="form-control" id="noteText" rows="4" placeholder="Write your note…" maxlength="8000" required></textarea>
+        </div>
+        <div>
+          <div class="form-label">Highlight colour</div>
+          <div class="d-flex gap-3" role="group" aria-label="Highlight colour">
+            <button class="btn btn-solid theme-warning btn-sm btn-icon" type="button" data-note-color="#ffd54f" aria-label="Yellow" aria-pressed="true"></button>
+            <button class="btn btn-solid theme-success btn-sm btn-icon" type="button" data-note-color="#75b798" aria-label="Green" aria-pressed="false"></button>
+            <button class="btn btn-solid theme-info btn-sm btn-icon" type="button" data-note-color="#6edff6" aria-label="Blue" aria-pressed="false"></button>
+            <button class="btn btn-solid theme-danger btn-sm btn-icon" type="button" data-note-color="#ea868f" aria-label="Red" aria-pressed="false"></button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+  <div class="drawer-footer">
+    <button type="button" class="btn btn-outline theme-secondary" data-bs-dismiss="drawer">Cancel</button>
+    <button type="submit" form="noteForm" class="btn btn-solid theme-primary">Save note</button>
+  </div>
+</dialog>
+
+<script type="application/json" id="book-data">{{ book|tojson }}</script>
+<script type="module" src="{{ url_for('static', filename='js/reader.js') }}"></script>
+{% endblock %}

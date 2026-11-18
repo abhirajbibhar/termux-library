@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}Digital Library{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.css') }}">
+  <script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {% block content %}{% endblock %}
+  <div class="toast-container position-fixed bottom-0 end-0 p-5 z-3" id="toastContainer"></div>
+  <script type="module" src="{{ url_for('static', filename='vendor/bootstrap.bundle.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

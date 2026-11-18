@@ -1,0 +1,4 @@
+# Pure-Python / pure-Wheel dependencies only: installs cleanly on Termux ARM64.
+Flask>=2.3,<4
+waitress>=3.0,<4
+pypdf>=4.0

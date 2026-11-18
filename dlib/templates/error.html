@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} · Digital Library{% endblock %}
+{% block content %}
+<main class="min-vh-100 d-flex align-items-center py-7">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 sm:col-8 md:col-6 lg:col-5">
+        <div class="card shadow-sm text-center">
+          <div class="card-body p-7">
+            <i class="bi bi-exclamation-octagon fg-danger fs-4xl"></i>
+            <div class="fs-3xl fw-semibold mt-3">{{ code }}</div>
+            <p class="fg-secondary mt-2 mb-7">{{ message }}</p>
+            <a class="btn btn-solid theme-primary" href="{{ url_for('pages.library') }}">
+              <i class="bi bi-arrow-left me-2"></i>Back to library
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

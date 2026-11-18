@@ -1,0 +1,15 @@
+{
+  "host": "0.0.0.0",
+  "port": 2104,
+  "library_dir": "library",
+  "covers_dir": "covers",
+  "data_dir": "data",
+  "database": "",
+  "secret_key": "",
+  "allow_registration": true,
+  "session_days": 30,
+  "secure_cookies": false,
+  "max_upload_mb": 2048,
+  "cors_origins": [],
+  "auto_metadata": true
+}

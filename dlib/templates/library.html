@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% block title %}My Library{% endblock %}
+{% block content %}
+<nav class="navbar sticky-top bg-body border-bottom">
+  <div class="container-fluid px-3 sm:px-5 py-3">
+    <div class="row g-3 align-items-center">
+    <a class="navbar-brand col-auto d-flex align-items-center gap-3 me-0" href="{{ url_for('pages.library') }}">
+      <span class="d-inline-flex align-items-center justify-content-center bg-1 fg-primary rounded-5 p-3">
+        <i class="bi bi-collection fs-lg"></i>
+      </span>
+      <span class="fw-semibold d-none sm:d-inline">Digital Library</span>
+    </a>
+
+    <div class="col-12 order-3 md:col md:order-2 min-w-0">
+      <div class="input-group">
+        <span class="input-group-text bg-body"><i class="bi bi-search" aria-hidden="true"></i></span>
+        <input id="searchInput" type="search" class="form-control" placeholder="Search title, author or tag…" autocomplete="off" aria-label="Search library">
+        <button class="btn btn-outline theme-secondary d-none" id="clearSearchBtn" type="button" aria-label="Clear search">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="col-auto order-2 md:order-3 ms-auto d-flex align-items-center gap-3 flex-wrap">
+      <button class="btn btn-solid theme-primary btn-sm" id="openUploadBtn" data-bs-toggle="drawer" data-bs-target="#uploadDialog" type="button">
+        <i class="bi bi-plus-lg me-2"></i><span class="d-none sm:d-inline">Upload</span>
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm" id="scanBtn" type="button" title="Scan library folder">
+        <i class="bi bi-arrow-repeat me-2"></i><span class="d-none lg:d-inline">Scan</span>
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm d-none md:d-inline-flex" id="openCollectionsBtn" data-bs-toggle="drawer" data-bs-target="#collectionsDrawer" type="button">
+        <i class="bi bi-collection me-2"></i><span class="d-none lg:d-inline">Shelves</span>
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm btn-icon" id="themeToggle" type="button" aria-label="Toggle color mode">
+        <i class="bi bi-sun" data-theme-icon></i>
+      </button>
+
+      <div class="d-none md:d-block">
+        <button class="btn btn-outline theme-secondary btn-sm" data-bs-toggle="menu" data-bs-placement="bottom-end" aria-expanded="false" id="userMenuBtn" type="button">
+          <i class="bi bi-person-circle me-2"></i><span class="d-none lg:d-inline">{{ g.user.display_name or g.user.username }}</span>
+          <i class="bi bi-chevron-down ms-2"></i>
+        </button>
+        <div class="menu">
+          <h6 class="menu-header">Signed in as {{ g.user.username }}</h6>
+          <button class="menu-item" type="button" id="openPasswordBtn" data-bs-toggle="drawer" data-bs-target="#passwordDialog">
+            <i class="bi bi-key menu-item-icon"></i>Change password
+          </button>
+          <hr class="menu-divider">
+          <button class="menu-item theme-danger" type="button" id="logoutBtn">
+            <i class="bi bi-box-arrow-right menu-item-icon"></i>Sign out
+          </button>
+        </div>
+      </div>
+
+      <button class="btn btn-outline theme-secondary btn-sm btn-icon md:d-none" type="button" data-bs-toggle="drawer" data-bs-target="#libraryMenuDrawer" aria-label="Open library menu">
+        <i class="bi bi-list"></i>
+      </button>
+    </div>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-7">
+  <div class="alert theme-info d-none align-items-center gap-3" id="scanBanner" role="status">
+    <div class="spinner-border spinner-sm" aria-hidden="true"></div>
+    <div class="flex-grow-1" id="scanMessage">Scanning library folder…</div>
+  </div>
+
+  <section class="mb-7 d-none" id="continueSection">
+    <div class="d-flex align-items-baseline justify-content-between gap-3 mb-5">
+      <h2 class="h5 mb-0">Continue reading</h2>
+      <button class="btn btn-text theme-secondary btn-sm" id="showAllReadingBtn" type="button">See all</button>
+    </div>
+    <div class="row g-5" id="continueShelf"></div>
+  </section>
+
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-5 mb-5">
+    <div>
+      <h1 class="h3 mb-2" id="libraryHeading">Library</h1>
+      <div class="fg-secondary fs-sm" id="bookCount">{{ total_books }} book{{ '' if total_books == 1 else 's' }}</div>
+    </div>
+    <div class="btn-group" role="group" aria-label="View mode">
+      <button class="btn btn-outline theme-secondary btn-sm active" id="viewGridBtn" type="button" aria-pressed="true">
+        <i class="bi bi-grid-3x3-gap me-2"></i>Grid
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm" id="viewListBtn" type="button" aria-pressed="false">
+        <i class="bi bi-list-ul me-2"></i>List
+      </button>
+    </div>
+  </div>
+
+  <div class="card mb-7">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3 p-5">
+      <select class="form-control form-control-sm w-auto" id="formatFilter" aria-label="Filter by format">
+        <option value="">All formats</option>
+        {% for fmt in formats %}<option value="{{ fmt }}">{{ fmt }}</option>{% endfor %}
+      </select>
+      <select class="form-control form-control-sm w-auto" id="statusFilter" aria-label="Filter by reading status">
+        <option value="">Any status</option>
+        <option value="unread">Unread</option>
+        <option value="reading">Reading</option>
+        <option value="finished">Finished</option>
+      </select>
+      <select class="form-control form-control-sm w-auto" id="collectionFilter" aria-label="Filter by shelf">
+        <option value="">All shelves</option>
+        {% for collection in collections %}<option value="{{ collection.id }}">{{ collection.name }} ({{ collection.book_count }})</option>{% endfor %}
+      </select>
+      <select class="form-control form-control-sm w-auto" id="sortSelect" aria-label="Sort books">
+        <option value="added_desc">Recently added</option>
+        <option value="title">Title A–Z</option>
+        <option value="author">Author A–Z</option>
+        <option value="recent">Recently read</option>
+        <option value="size">Largest first</option>
+      </select>
+      <button class="btn btn-outline theme-secondary btn-sm ms-auto" id="clearFiltersBtn" type="button" hidden>
+        <i class="bi bi-funnel me-2"></i>Clear filters
+      </button>
+    </div>
+  </div>
+
+  <div id="loadingState" class="text-center py-7">
+    <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
+  </div>
+
+  <div class="row row-cols-2 sm:row-cols-3 lg:row-cols-4 2xl:row-cols-6 g-5 d-none" id="bookGrid"></div>
+
+  <div class="list-group d-none" id="bookList"></div>
+
+  <div class="text-center py-7 d-none" id="emptyState">
+    <i class="bi bi-inbox fg-secondary fs-4xl"></i>
+    <h2 class="h5 mt-3">No books found</h2>
+    <p class="fg-secondary mb-5" id="emptyMessage">Upload a book or run a folder scan to get started.</p>
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+      <button class="btn btn-solid theme-primary btn-sm" data-bs-toggle="drawer" data-bs-target="#uploadDialog" type="button">
+        <i class="bi bi-plus-lg me-2"></i>Upload books
+      </button>
+      <button class="btn btn-outline theme-secondary btn-sm" id="emptyScanBtn" type="button">
+        <i class="bi bi-arrow-repeat me-2"></i>Scan library folder
+      </button>
+    </div>
+    <div class="fg-secondary fs-sm mt-5">Library folder: <code>{{ config.APP_CONFIG.library_dir }}</code></div>
+  </div>
+
+  <div class="d-flex justify-content-center py-5">
+    <button class="btn btn-outline theme-secondary d-none" id="loadMoreBtn" type="button">Load more</button>
+  </div>
+  <div class="text-center fg-secondary fs-sm pb-7" id="pageInfo"></div>
+</div>
+
+<div class="position-fixed bottom-0 start-50 translate-middle-x mb-7 z-3 d-none" id="bulkBar">
+  <div class="card shadow">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3 p-5">
+      <span class="fw-semibold"><span id="selectedCount">0</span> selected</span>
+      <select class="form-control form-control-sm w-auto" id="bulkCollectionSelect" aria-label="Choose shelf">
+        <option value="">Choose shelf…</option>
+        {% for collection in collections %}<option value="{{ collection.id }}">{{ collection.name }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-sm btn-outline theme-primary" id="bulkAddBtn" type="button">Add</button>
+      <button class="btn btn-sm btn-outline theme-primary" id="bulkMoveBtn" type="button">Move</button>
+      <button class="btn btn-sm btn-outline theme-secondary" id="bulkRemoveBtn" type="button">Remove</button>
+      <button class="btn btn-sm btn-outline theme-secondary" id="bulkDownloadBtn" type="button">
+        <i class="bi bi-download me-2"></i>Download ZIP
+      </button>
+      <button class="btn btn-sm btn-outline theme-danger" id="bulkDeleteBtn" type="button">
+        <i class="bi bi-trash me-2"></i>Delete
+      </button>
+      <button class="btn btn-sm btn-text theme-secondary" id="bulkClearBtn" type="button">Clear</button>
+    </div>
+  </div>
+</div>
+
+<dialog class="drawer drawer-bottom drawer-sheet" id="uploadDialog" tabindex="-1" style="--bs-drawer-height: min(80vh, 760px);" aria-labelledby="uploadDialogLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="uploadDialogLabel">Upload books</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <div class="border border-2 rounded-5 p-7 text-center bg-1" id="dropzone">
+      <i class="bi bi-cloud-arrow-up fs-4xl fg-primary"></i>
+      <p class="fw-semibold mt-3 mb-2">Drag &amp; drop books or folders here</p>
+      <p class="fg-secondary fs-sm mb-5">EPUB, MOBI, AZW3, FB2, CBZ, PDF</p>
+      <div class="d-flex flex-wrap justify-content-center gap-3">
+        <label class="btn btn-solid theme-primary btn-sm mb-0" for="fileInput">Choose files</label>
+        <label class="btn btn-outline theme-secondary btn-sm mb-0" for="folderInput">Choose folder</label>
+      </div>
+      <input type="file" id="fileInput" class="visually-hidden" multiple accept=".epub,.mobi,.azw3,.fb2,.cbz,.pdf">
+      <input type="file" id="folderInput" class="visually-hidden" webkitdirectory directory multiple>
+    </div>
+    <div class="fg-secondary fs-sm mt-3">
+      Files are stored as <code>LIBRARY_DIR/Author/Title/filename</code>. Folder uploads keep their file names.
+    </div>
+    <div class="mt-5 d-none" id="uploadProgressWrap">
+      <div class="d-flex justify-content-between fs-sm mb-2">
+        <span class="text-truncate" id="uploadCurrent">Preparing…</span>
+        <span id="uploadCounter"></span>
+      </div>
+      <div class="progress" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar" id="uploadProgressBar" style="width: 0%"></div>
+      </div>
+    </div>
+    <ul class="list-group list-group-flush mt-5" id="uploadQueue"></ul>
+  </div>
+  <div class="drawer-footer">
+    <span class="fg-secondary fs-sm me-auto" id="uploadHint">Metadata and covers are extracted automatically.</span>
+    <button type="button" class="btn btn-outline theme-secondary" data-bs-dismiss="drawer">Close</button>
+  </div>
+</dialog>
+
+<dialog class="drawer drawer-end" id="editDialog" tabindex="-1" style="--bs-drawer-width: 560px;" aria-labelledby="editDialogLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="editDialogLabel">Edit book details</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <form id="editForm">
+      <div class="row g-5">
+        <div class="col-12 sm:col-4">
+          <div class="ratio-auto position-relative rounded-5 overflow-hidden bg-2 mb-3" id="editCoverWrap" style="--bs-ratio: 2 / 3;">
+            <img alt="Cover preview" id="editCoverImg" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover d-none">
+            <div class="position-absolute top-0 start-0 d-flex flex-column align-items-center justify-content-center h-100 w-100 p-3 text-center fg-secondary" id="editCoverPlaceholder">
+              <i class="bi bi-image fs-2xl mb-2"></i>
+              <span class="fs-sm">No cover</span>
+            </div>
+          </div>
+          <label class="btn btn-outline theme-secondary btn-sm w-100 mb-2" for="coverFileInput">Replace cover</label>
+          <input type="file" id="coverFileInput" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/gif">
+          <div class="form-text">JPEG, PNG, WebP or GIF up to 8 MB.</div>
+        </div>
+        <div class="col-12 sm:col-8">
+          <div class="vstack gap-3">
+            <div>
+              <label class="form-label" for="editTitle">Title</label>
+              <input class="form-control" id="editTitle" required maxlength="300">
+            </div>
+            <div>
+              <label class="form-label" for="editAuthor">Author</label>
+              <input class="form-control" id="editAuthor" maxlength="300">
+            </div>
+            <div class="row g-3">
+              <div class="col-6">
+                <label class="form-label" for="editYear">Published year</label>
+                <input class="form-control" id="editYear" inputmode="numeric" maxlength="10">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="editLanguage">Language</label>
+                <input class="form-control" id="editLanguage" maxlength="20" placeholder="en">
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-6">
+                <label class="form-label" for="editPublisher">Publisher</label>
+                <input class="form-control" id="editPublisher" maxlength="200">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="editIsbn">ISBN</label>
+                <input class="form-control" id="editIsbn" maxlength="20">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="editTags">Tags / genres <span class="fg-secondary">(comma separated)</span></label>
+          <input class="form-control" id="editTags" maxlength="500">
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="editDescription">Description</label>
+          <textarea class="form-control" id="editDescription" rows="4" maxlength="8000"></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="metadataQuery">Fetch details from Google Books / OpenLibrary</label>
+          <div class="input-group">
+            <input class="form-control" id="metadataQuery" placeholder="Title, author or ISBN">
+            <button class="btn btn-outline theme-primary" type="button" id="metadataSearchBtn">Search</button>
+          </div>
+          <div class="list-group mt-3" id="metadataResults"></div>
+        </div>
+      </div>
+    </form>
+  </div>
+  <div class="drawer-footer">
+    <button type="button" class="btn btn-outline theme-danger me-auto" id="editDeleteBtn">
+      <i class="bi bi-trash me-2"></i>Delete book
+    </button>
+    <button type="button" class="btn btn-outline theme-secondary" data-bs-dismiss="drawer">Cancel</button>
+    <button type="submit" form="editForm" class="btn btn-solid theme-primary">Save changes</button>
+  </div>
+</dialog>
+
+<dialog class="drawer drawer-start" id="collectionsDrawer" tabindex="-1" aria-labelledby="collectionsDrawerLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="collectionsDrawerLabel">Shelves &amp; collections</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <form class="vstack gap-3 mb-7" id="collectionForm">
+      <div>
+        <label class="form-label" for="collectionName">New shelf</label>
+        <input class="form-control" id="collectionName" placeholder="Shelf name" maxlength="80" required>
+      </div>
+      <div>
+        <label class="form-label" for="collectionDescription">Description <span class="fg-secondary">(optional)</span></label>
+        <input class="form-control" id="collectionDescription" placeholder="What belongs on this shelf?" maxlength="500">
+      </div>
+      <button class="btn btn-solid theme-primary" type="submit">
+        <i class="bi bi-plus-lg me-2"></i>Create shelf
+      </button>
+    </form>
+    <div class="list-group list-group-flush" id="collectionsList"></div>
+  </div>
+</dialog>
+
+<dialog class="drawer drawer-bottom drawer-sheet" id="libraryMenuDrawer" tabindex="-1" style="--bs-drawer-height: auto; --bs-drawer-sheet-width: 30rem;" aria-labelledby="libraryMenuDrawerLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="libraryMenuDrawerLabel">Library menu</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <div class="d-flex align-items-center gap-3 mb-7">
+      <span class="d-inline-flex align-items-center justify-content-center bg-1 fg-primary rounded-5 p-3">
+        <i class="bi bi-person fs-lg"></i>
+      </span>
+      <div class="min-w-0">
+        <div class="fw-semibold text-truncate">{{ g.user.display_name or g.user.username }}</div>
+        <div class="fg-secondary fs-sm text-truncate">{{ g.user.username }}</div>
+      </div>
+    </div>
+    <div class="list-group list-group-flush" aria-label="Library actions">
+      <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" type="button" id="mobileScanBtn">
+        <i class="bi bi-arrow-repeat"></i>Scan library folder
+      </button>
+      <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" type="button" data-bs-toggle="drawer" data-bs-target="#collectionsDrawer">
+        <i class="bi bi-collection"></i>Shelves &amp; collections
+      </button>
+      <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" type="button" data-bs-toggle="drawer" data-bs-target="#passwordDialog">
+        <i class="bi bi-key"></i>Change password
+      </button>
+      <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 fg-danger" type="button" id="mobileLogoutBtn">
+        <i class="bi bi-box-arrow-right"></i>Sign out
+      </button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="drawer drawer-bottom drawer-sheet" id="confirmDialog" tabindex="-1" style="--bs-drawer-height: auto; --bs-drawer-sheet-width: 30rem;" aria-labelledby="confirmDialogLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="confirmDialogLabel">Are you sure?</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body"><p class="mb-0" id="confirmMessage">This cannot be undone.</p></div>
+  <div class="drawer-footer">
+    <button type="button" class="btn btn-outline theme-secondary" data-bs-dismiss="drawer">Cancel</button>
+    <button type="button" class="btn btn-solid theme-danger" id="confirmActionBtn">Delete</button>
+  </div>
+</dialog>
+
+<dialog class="drawer drawer-bottom drawer-sheet" id="passwordDialog" tabindex="-1" style="--bs-drawer-height: auto; --bs-drawer-sheet-width: 30rem;" aria-labelledby="passwordDialogLabel">
+  <div class="drawer-header">
+    <h2 class="drawer-title h5" id="passwordDialogLabel">Change password</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body">
+    <form id="passwordForm" class="vstack gap-3">
+      <div>
+        <label class="form-label" for="currentPassword">Current password</label>
+        <input class="form-control" type="password" id="currentPassword" autocomplete="current-password" required>
+      </div>
+      <div>
+        <label class="form-label" for="newPassword">New password</label>
+        <input class="form-control" type="password" id="newPassword" autocomplete="new-password" minlength="6" required>
+      </div>
+    </form>
+  </div>
+  <div class="drawer-footer">
+    <button type="button" class="btn btn-outline theme-secondary" data-bs-dismiss="drawer">Cancel</button>
+    <button type="submit" form="passwordForm" class="btn btn-solid theme-primary">Update password</button>
+  </div>
+</dialog>
+
+<script type="application/json" id="page-data">{{ {"libraryDir": config.APP_CONFIG.library_dir}|tojson }}</script>
+<script type="module" src="{{ url_for('static', filename='js/library.js') }}"></script>
+{% endblock %}
